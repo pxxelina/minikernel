@@ -1,0 +1,64 @@
+char *video = (char*)0xB8000;
+int cursor = 0;
+
+void print_char(char c, char color) {
+    if (c == 10) { cursor += (80 - (cursor % 80)); }
+    else { video[cursor*2]=c; video[cursor*2+1]=color; cursor++; }
+}
+
+void print(char *str, char color) {
+    for (int i = 0; str[i] != 0; i++) print_char(str[i], color);
+}
+
+void clear_screen() {
+    for (int i = 0; i < 80*25; i++) { video[i*2]=32; video[i*2+1]=0x07; }
+    cursor = 0;
+}
+
+int strcmp(char *a, char *b) {
+    int i=0; while(a[i]&&b[i]&&a[i]==b[i])i++; return a[i]-b[i];
+}
+
+unsigned char inb(unsigned short port) {
+    unsigned char val;
+    __asm__ volatile ("inb %1, %0":"=a"(val):"Nd"(port)); return val;
+}
+
+char read_key() {
+    char keys[] = "??1234567890-=??qwertyuiop[]??asdfghjkl;~`?\\zxcvbnm,./? ?";
+    unsigned char sc;
+    do { while((inb(0x64)&0x01)==0); sc=inb(0x60); } while(sc&0x80);
+    if(sc==0x1C) return 10; if(sc==0x0E) return 8; if(sc==0x39) return 32;
+    if(sc<58) return keys[sc]; return 63;
+}
+
+void run_command(char *cmd) {
+    if(strcmp(cmd,"help")==0){
+        print("Commands:\n",0x07);
+        print("  help    - show commands\n",0x07);
+        print("  clear   - clear screen\n",0x07);
+        print("  version - kernel version\n",0x07);
+        print("  echo    - print text\n",0x07);
+    } else if(strcmp(cmd,"clear")==0){ clear_screen();
+    } else if(strcmp(cmd,"version")==0){ print("MiniKernel v1.0\n",0x07);
+    } else if(cmd[0]==101&&cmd[1]==99&&cmd[2]==104&&cmd[3]==111&&cmd[4]==32){
+        int i=5; while(cmd[i]) print_char(cmd[i++],0x07); print_char(10,0x07);
+    } else { print("Unknown command. Type help\n",0x07); }
+}
+
+void kernel_main() {
+    clear_screen();
+    print("Welcome to MiniKernel\n",0x07);
+    print("Type help for commands\n\n",0x07);
+    char input[80]; int len=0;
+    while(1){
+        print("> ",0x07); len=0;
+        while(1){
+            char c=read_key();
+            if(c==10){ print_char(10,0x07); input[len]=0; break;}
+            else if(c==8){ if(len>0){len--; cursor--; video[cursor*2]=32;}}
+            else { input[len++]=c; print_char(c,0x07);}
+        }
+        if(len>0) run_command(input);
+    }
+}
